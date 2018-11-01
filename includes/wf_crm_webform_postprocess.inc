@@ -753,6 +753,32 @@ class wf_crm_webform_postprocess extends wf_crm_webform_base {
     $is_primary_email_location_type = wf_crm_aval($contact, 'email:1:location_type_id');
 
     foreach (wf_crm_location_fields() as $location) {
+      /**
+	   *  Remove existing shared address
+	   * */
+	  if ($location == 'address') {
+		 $shareMasterID=false; // if shared address location id is exist or not
+		 foreach ($contact[$location] as $i => $params) {
+		 if (!empty($params['master_id'])) {
+			 /**
+			  * Find out existing share address
+			  */
+			  $findshareparams = array('contact_id' => $cid);
+			  $findshareparams['options'] = array('sort' => 'is_primary DESC');
+			  $addressresult = wf_civicrm_api($location, 'get', $findshareparams);
+			  if(!empty($addressresult['values'])){
+				  foreach($addressresult['values'] as $addressId=>$address){
+					  if($address['location_type_id']==$params['location_type_id']){
+						  $shareaddressparams['id']=$addressId;
+						 // Delete this location if nothing was entered and this is a known contact
+						  wf_civicrm_api($location, 'delete', $shareaddressparams);
+						  $shareMasterID=$i;
+					   }
+				   }
+			   }
+	     }
+		  }  
+	  }
       if (!empty($contact[$location])) {
         $existing = array();
         $params = array('contact_id' => $cid);
@@ -761,7 +787,10 @@ class wf_crm_webform_postprocess extends wf_crm_webform_base {
         }
         $result = wf_civicrm_api($location, 'get', $params);
         if (!empty($result['values'])) {
+          // there is no need for reordering of location if existing shared contact was deleted above
+          if($shareMasterID != 1){
           $contact[$location] = self::reorderLocationValues($contact[$location], $result['values'], $location);
+          }
           // start array index at 1
           $existing = array_merge(array(array()), $result['values']);
         }
